@@ -1,0 +1,61 @@
+.borough_shapes {
+    fill: #ddd;
+}
+.borough_boundaries {
+    fill: none;
+    stroke: white;
+    stroke-linejoin: round;
+}
+.tube_lines {
+    fill: none;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.all_borders {
+    stroke-linecap: round;
+}
+.train_fill {
+    stroke-linecap: round;
+}
+.node_edge {
+    fill: none;
+}
+.foot_link_fill {
+    stroke-linecap: round;
+}
+.node_fill {
+    stroke-width: 0;
+}
+
+.voronoi_cell {
+    fill: red;
+    fill-opacity: 0;
+    stroke-opacity: 0;
+    stroke: red;
+    pointer-events: all;
+}
+.voronoi_backtext {
+    stroke: white;
+    fill: white;
+    visibility: hidden;
+}
+.voronoi_foretext {
+    visibility: hidden;
+}
+.voronoi_circle {
+    visibility: hidden;
+}
+.voronoi_group:hover .voronoi_cell {
+    fill-opacity: 0;
+    stroke-opacity: 0;
+}
+.voronoi_group:hover .voronoi_backtext {
+    visibility: visible;
+}
+.voronoi_group:hover .voronoi_foretext {
+    visibility: visible;
+}
+.voronoi_group:hover .voronoi_circle {
+    visibility: visible;
+}

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+   <head>
+      <meta charset="utf-8">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+      <title>Tube Map</title>
+      <!-- Load Bootstrap and jQuery -->
+      <!--link rel="stylesheet" href="/libraries/bootstrap-4.4.1-dist/css/bootstrap.css"-->
+      <link rel="stylesheet" type="text/css" href="stylesheet.css">
+      <link rel="stylesheet" type="text/css" href="custom-switch-large.css">
+      <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+      <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+      <!--[if lt IE 9]>
+         <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+         <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+      <![endif]-->
+      <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+      <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+      <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+      <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+      <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+      <!-- Load d3 -->
+      <script src="https://d3js.org/d3.v5.min.js"></script>
+      <script src="https://unpkg.com/d3-delaunay@5.2.1"></script>
+      <script src="https://unpkg.com/topojson-client@3.1.0"></script>
+      <!--script src="/libraries/d3-5.15.0/d3.min.js"></script-->
+      <!--script src="/libraries/d3-5.2.1-delaunay/d3-delaunay.min.js"></script-->
+      <!--script src="/libraries/topojson-client-3.1.0/topojson-client.min.js"></script-->
+      <!-- Load slim-select -->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/slim-select/1.25.0/slimselect.min.js"></script>
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/slim-select/1.25.0/slimselect.min.css" rel="stylesheet"></link>
+      <!-- Load Pyodide -->
+      <script src="https://pyodide-cdn2.iodide.io/v0.15.0/full/pyodide.js"></script>
+      <!--script>
+         window.languagePluginUrl = "/libraries/pyodide-build-0.14.3/"
+      </script-->
+      <!--script src="/libraries/pyodide-build-0.14.3/pyodide.js"></script-->
+      <!-- Load my own scripts -->
+      <script src="/scripts/dropdowns.js"></script>
+      <script src="/scripts/zoom-to-fit.js"></script>
+      <script src="/scripts/d3_simulation.js"></script>
+      <script src="/scripts/voronoi.js"></script>
+      <script src="/scripts/background.js"></script>
+      <script src="/scripts/styling.js"></script>
+      <script>
+         loadPythonScripts = async function() {
+            const response = await fetch("./scripts/route_planning.py")
+            console.log("Loaded python script")
+            const code = response.text()
+            await languagePluginLoader
+            console.log("Loaded languagePluginLoader")
+            await pyodide.runPythonAsync(await code)
+            console.log("Loaded Python packages")
+            shortest_paths = pyodide.pyimport("shortest_paths")
+            return shortest_paths
+         }
+         updateRoutes = async function() {
+            //svg = d3.select("#route_map").call(zoom)
+            const t = d3.transition().duration(2000)
+
+            // compute shortest routes
+            //const k = parseInt(document.getElementById("num_routes").value)
+            //var source_val = source_list.options[source_list.selectedIndex].value
+            //var target_val = target_list.options[target_list.selectedIndex].value
+
+            //source_val = window.source.selected()[0]
+            //target_val = window.source.selected()[1].replace("Entrance","Exit")
+
+            stations = window.source.selected()
+            const json_routes = await shortest_paths(JSON.stringify(json_whole_network), stations)
+
+            // start the simulation
+            const {simulation, links, nodes} = run_simulation(svg, json_routes)//, source_val, target_val)
+            window.simulation = simulation
+            window.nodes = nodes
+            var sel = svg.selectAll(".foreground")
+            sel.filter((d,j) => j==sel.nodes().length-1).transition(t).style("opacity",0).remove()
+            const foreground = draw_foreground(svg, links, nodes)
+            window.foreground = foreground
+
+            // draw them in map-view
+            reposition_map(svg, foreground)
+            //create_voronoi(svg, nodes, window.positioning)
+            svg.select(".background").transition(t).style("opacity",0.5)
+            //svg.select(".tube_lines").transition(t).style("opacity",0.1)
+            var sel = svg.selectAll(".foreground")
+            sel.filter((d,j) => j==sel.nodes().length-1).transition(t).style("opacity",1)
+
+            document.getElementById("flip_simulation").removeAttribute("disabled")
+
+         };
+         flipSim = function() {
+            const svg = d3.select("#route_map")
+            const t = d3.transition().duration(1000)
+            if (window.positioning === 'map') {
+               window.positioning = 'sim'
+               document.getElementById("show_routes").setAttribute("disabled","")
+               window.source.disable()
+               reposition_sim(svg, window.foreground.transition(t))
+               //svg.selectAll(".voronoi").remove()
+               create_voronoi(svg, window.nodes, window.positioning)
+               svg.select(".background").transition(t).style("opacity",0)
+            } else {
+               window.positioning = 'map'
+               document.getElementById("show_routes").removeAttribute("disabled")
+               window.source.enable()
+               reposition_map(svg, window.foreground.transition(t))
+               svg.selectAll(".voronoi").remove()
+               //create_voronoi(svg, window.nodes, window.positioning)
+               svg.select(".background").transition(t).style("opacity",0.5)
+            }
+         }
+      </script>
+   </head>
+   <body>
+
+      <div class="container">
+         <div class="form-row">
+            <div class="col-md-8 form-group">
+               <select id="source" multiple></select>
+            </div>
+            <div class="col-md-2 form-group">
+               <button class="btn btn-primary form-control" id="show_routes" type="button" onclick="updateRoutes()">
+                  <span class="spinner-border spinner-border-sm" id="show_routes_loading" role="status" aria-hidden="true"></span>
+                  Loading...
+                </button>
+            </div>
+            <div class="col-md-2 form-group">
+               <div class="custom-control custom-switch align-self-end">
+                  <input type="checkbox" class="custom-control-input" id="flip_simulation" onclick="flipSim()">
+                  <label class="custom-control-label" for="flip_simulation">Toggle view</label>
+               </div>
+            </div>
+         </div>
+         <div class="row">
+            <svg id="route_map" viewBox="0,0,932,620"></svg>
+         </div>
+      </div>
+      <script>
+         (async () => {
+
+            var source = new SlimSelect({
+               select: '#source',
+               placeholder: 'Choose stations...',
+               limit: 3,
+               hideSelectedOption: true
+            })
+            window.source = source
+
+            shortest_paths = loadPythonScripts()
+
+            // start off in map mode
+            document.getElementById("flip_simulation").removeAttribute("checked")
+
+            // prevent the user from interacting with things
+            document.getElementById("show_routes").setAttribute("disabled","")
+            window.source.disable()
+            document.getElementById("flip_simulation").setAttribute("disabled","")
+            window.positioning = 'map'
+
+            // load the network and fill the dropdowns
+            json_whole_network = await d3.json("./data_processed/nx_graph.json")
+            window.source_list = fill_dropdowns(json_whole_network, "source")
+
+            // draw the background map
+            svg = d3.select("#route_map")
+            const projection = get_projection(svg)
+            const background = await draw_background(svg, projection)
+
+            // load pyodide and python functions
+            await shortest_paths
+            console.log("Python fully loaded")
+            document.getElementById("show_routes").removeAttribute("disabled")
+            window.source.enable()
+            document.getElementById("show_routes_loading").classList.add("invisible")
+            document.getElementById("show_routes").textContent = "Search"
+            
+         })()
+      </script>
+   </body>
+</html>
