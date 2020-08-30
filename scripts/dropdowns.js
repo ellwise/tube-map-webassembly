@@ -1,4 +1,4 @@
-function fill_dropdowns(json_whole_network, dropdown_name) {
+function fill_dropdowns(json_whole_network, dropdown_name, entex) {
     // add options to dropdowns
     const compareNodes = function(a,b) {
        const nameA = a.name.toUpperCase(); // ignore upper and lowercase
@@ -15,7 +15,7 @@ function fill_dropdowns(json_whole_network, dropdown_name) {
     nodes.sort(compareNodes) 
     const dropdown_list = document.getElementById(dropdown_name)
     nodes.forEach((node,index) => {
-       if (node.id.includes("EntEx")) {
+       if (node.id.includes(entex)) {
           const option = document.createElement("option");
           option.innerHTML = node.name;
           option.value = node.id;

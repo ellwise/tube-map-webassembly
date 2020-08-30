@@ -28,9 +28,6 @@
       <!--script src="/libraries/d3-5.15.0/d3.min.js"></script-->
       <!--script src="/libraries/d3-5.2.1-delaunay/d3-delaunay.min.js"></script-->
       <!--script src="/libraries/topojson-client-3.1.0/topojson-client.min.js"></script-->
-      <!-- Load slim-select -->
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/slim-select/1.25.0/slimselect.min.js"></script>
-      <link href="https://cdnjs.cloudflare.com/ajax/libs/slim-select/1.25.0/slimselect.min.css" rel="stylesheet"></link>
       <!-- Load Pyodide -->
       <script src="https://pyodide-cdn2.iodide.io/v0.15.0/full/pyodide.js"></script>
       <!--script>
@@ -53,26 +50,21 @@
             console.log("Loaded languagePluginLoader")
             await pyodide.runPythonAsync(await code)
             console.log("Loaded Python packages")
-            shortest_paths = pyodide.pyimport("shortest_paths")
-            return shortest_paths
+            k_shortest_paths = pyodide.pyimport("k_shortest_paths")
+            return k_shortest_paths
          }
-         updateRoutes = async function() {
+         updateRoutes = function() {
             //svg = d3.select("#route_map").call(zoom)
             const t = d3.transition().duration(2000)
 
             // compute shortest routes
-            //const k = parseInt(document.getElementById("num_routes").value)
-            //var source_val = source_list.options[source_list.selectedIndex].value
-            //var target_val = target_list.options[target_list.selectedIndex].value
-
-            //source_val = window.source.selected()[0]
-            //target_val = window.source.selected()[1].replace("Entrance","Exit")
-
-            stations = window.source.selected()
-            const json_routes = await shortest_paths(JSON.stringify(json_whole_network), stations)
+            const k = parseInt(document.getElementById("num_routes").value)
+            var source_val = source_list.options[source_list.selectedIndex].value
+            var target_val = target_list.options[target_list.selectedIndex].value
+            json_routes = k_shortest_paths(JSON.stringify(json_whole_network), source_val, target_val, k)
 
             // start the simulation
-            const {simulation, links, nodes} = run_simulation(svg, json_routes)//, source_val, target_val)
+            const {simulation, links, nodes} = run_simulation(svg, json_routes, source_val, target_val)
             window.simulation = simulation
             window.nodes = nodes
             var sel = svg.selectAll(".foreground")
@@ -97,7 +89,9 @@
             if (window.positioning === 'map') {
                window.positioning = 'sim'
                document.getElementById("show_routes").setAttribute("disabled","")
-               window.source.disable()
+               document.getElementById("source").setAttribute("disabled","")
+               document.getElementById("target").setAttribute("disabled","")
+               document.getElementById("num_routes").setAttribute("disabled","")
                reposition_sim(svg, window.foreground.transition(t))
                //svg.selectAll(".voronoi").remove()
                create_voronoi(svg, window.nodes, window.positioning)
@@ -105,7 +99,9 @@
             } else {
                window.positioning = 'map'
                document.getElementById("show_routes").removeAttribute("disabled")
-               window.source.enable()
+               document.getElementById("source").removeAttribute("disabled")
+               document.getElementById("target").removeAttribute("disabled")
+               document.getElementById("num_routes").removeAttribute("disabled")
                reposition_map(svg, window.foreground.transition(t))
                svg.selectAll(".voronoi").remove()
                //create_voronoi(svg, window.nodes, window.positioning)
@@ -118,19 +114,29 @@
 
       <div class="container">
          <div class="form-row">
-            <div class="col-md-8 form-group">
-               <select id="source" multiple></select>
+            <div class="col-md-4" >
+               <label class="custom-control-label">Origin</label>
+               <select class="form-control custom-select" id="source"></select>
             </div>
-            <div class="col-md-2 form-group">
+            <div class="col-md-4">
+               <label class="custom-control-label">Destination</label>
+               <select class="form-control custom-select" id="target"></select>
+            </div>
+            <div class="col-md-1">
+               <label class="custom-control-label">Routes</label>
+               <input class="form-control" type="number" id="num_routes" min="1" max="5" step="1" value="3">
+            </div>
+            <div class="col-md-1 align-self-end">
                <button class="btn btn-primary form-control" id="show_routes" type="button" onclick="updateRoutes()">
                   <span class="spinner-border spinner-border-sm" id="show_routes_loading" role="status" aria-hidden="true"></span>
                   Loading...
                 </button>
             </div>
-            <div class="col-md-2 form-group">
+            <div class="col-md-2">
+               <label class="custom-control-label">Toggle view</label>
                <div class="custom-control custom-switch align-self-end">
                   <input type="checkbox" class="custom-control-input" id="flip_simulation" onclick="flipSim()">
-                  <label class="custom-control-label" for="flip_simulation">Toggle view</label>
+                  <label class="custom-control-label" for="flip_simulation"></label>
                </div>
             </div>
          </div>
@@ -141,28 +147,23 @@
       <script>
          (async () => {
 
-            var source = new SlimSelect({
-               select: '#source',
-               placeholder: 'Choose stations...',
-               limit: 3,
-               hideSelectedOption: true
-            })
-            window.source = source
-
-            shortest_paths = loadPythonScripts()
+            k_shortest_paths = loadPythonScripts()
 
             // start off in map mode
-            document.getElementById("flip_simulation").removeAttribute("checked")
+            //document.getElementById("flip_simulation").checked = false
 
             // prevent the user from interacting with things
             document.getElementById("show_routes").setAttribute("disabled","")
-            window.source.disable()
+            document.getElementById("source").setAttribute("disabled","")
+            document.getElementById("target").setAttribute("disabled","")
+            document.getElementById("num_routes").setAttribute("disabled","")
             document.getElementById("flip_simulation").setAttribute("disabled","")
             window.positioning = 'map'
 
             // load the network and fill the dropdowns
             json_whole_network = await d3.json("./data_processed/nx_graph.json")
-            window.source_list = fill_dropdowns(json_whole_network, "source")
+            window.source_list = fill_dropdowns(json_whole_network, "source", "Entrance")
+            window.target_list = fill_dropdowns(json_whole_network, "target", "Exit")
 
             // draw the background map
             svg = d3.select("#route_map")
@@ -170,10 +171,12 @@
             const background = await draw_background(svg, projection)
 
             // load pyodide and python functions
-            await shortest_paths
+            await k_shortest_paths
             console.log("Python fully loaded")
             document.getElementById("show_routes").removeAttribute("disabled")
-            window.source.enable()
+            document.getElementById("source").removeAttribute("disabled")
+            document.getElementById("target").removeAttribute("disabled")
+            document.getElementById("num_routes").removeAttribute("disabled")
             document.getElementById("show_routes_loading").classList.add("invisible")
             document.getElementById("show_routes").textContent = "Search"
             
